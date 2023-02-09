@@ -12,11 +12,10 @@
 	let receiptAddress = '';
 	let installment = NaN;
 	let executorAllowance = 1200;
-	async function createContract() {
+	function createContract() {
 		if (receiptAddress && installment && period) {
 			try {
-        let address = await sanitizeAddress(receiptAddress)
-				contract = new Annuity(period, address, installment, executorAllowance);
+				contract = new Annuity(period, receiptAddress, installment, executorAllowance);
 			} catch (e: any) {
 				contract = undefined;
 				if (e.message) {
@@ -39,7 +38,7 @@
 		required
 		label="Receipt Address"
 	>
-		<HelperText slot="helper">The address to recieve a regular payout.</HelperText>
+		<HelperText slot="helper">The address to receive a regular payout.</HelperText>
 	</Textfield>
 
 	<Textfield
@@ -55,6 +54,8 @@
 			How often (in blocks) the contract can pay. e.g. 1 block, ~10 minutes.</HelperText
 		>
 	</Textfield>
+
+	<!-- <BlockTimeField bind:blockTime={period} on:message={() => createContract()} /> -->
 
 	<Textfield
 		bind:value={installment}
