@@ -25,6 +25,7 @@
 	import BlockchairAddress from './addressLinks/BlockchairAddress.svelte';
 	import BitInfoChartsAddress from './addressLinks/BitInfoChartsAddress.svelte';
 	import SickPigAddress from './addressLinks/SickPigAddress.svelte';
+	import ErrorConsole from './ErrorConsole.svelte';
 
 	export let instance: any;
 	export let instanceType = '';
@@ -196,7 +197,7 @@
 
 		<SickPigAddress address={instance.getAddress()} />
 		<BlockchairAddress address={instance.getAddress()} />
-		<BitInfoChartsAddress instance={instance} />
+		<BitInfoChartsAddress {instance} />
 	</div>
 
 	<Address address={instance.getAddress()} />
@@ -245,7 +246,7 @@
 		</div>
 	{/if}
 	{#if executeError}
-		<div id="errorConsole">{executeError}</div>
+		<ErrorConsole errorText={executeError} />
 	{/if}
 	{#if executedSuccess}
 		{#if txid}
