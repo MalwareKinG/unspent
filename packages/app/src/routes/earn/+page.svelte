@@ -1,37 +1,50 @@
-<script>
+<script lang="ts">
+	import { onMount } from 'svelte';
+
 	import { binToHex } from '@bitauth/libauth';
+
+  import type { BytecodePatternExtendedQueryI } from "@unspent/phi"
+	import {
+    BytecodePatternQueryDefaults,
+		getDefaultProvider,
+		opReturnToExecutorAllowance,
+		opReturnToSpendableBalance,
+    parseOpReturn
+	} from '@unspent/phi';
+	import { PsiNetworkProvider } from '@unspent/psi';
+
+
 	import Card from '@smui/card';
 	import Select, { Option } from '@smui/select';
 	import IconButton from '@smui/icon-button';
-	import CircularProgress from '@smui/circular-progress';
 	import LinearProgress from '@smui/linear-progress';
-	import { onMount } from 'svelte';
-	import { load } from '$lib/machinery/loader-store.js';
-	import { getRecords, parseOpReturn } from '@unspent/phi';
-	import {
-		getDefaultProvider,
-		opReturnToExecutorAllowance,
-		opReturnToSpendableBalance
-	} from '@unspent/phi';
+
 	//import ContractItem from '$lib/ContractItem.svelte';
 	import ContractAccordion from '$lib/ContractAccordion.svelte';
 	import { protocol, chaingraphHost, node, executorAddress } from '$lib/store.js';
 
-	let contractData = [];
+  import AddressSearch  from '$lib/contractFilter/AddressSearch.svelte';
+  import CodeSelect  from '$lib/contractFilter/CodeSelect.svelte';
+
+	let contractData:any[] = [];
 	let isLoading = true;
 	let buffered = 0;
 	let progress = 0;
 	let noResults = false;
 
-	let pageSizes = [5, 10, 25, 50];
-	let pageSize = 25;
+	let pageSizes = [5, 10, 25];
+	let pageSize = 10;
 	let page = 0;
 
+  let contractFilter = '';
+  let addressFilter = '';
 	let executorAddressValue = '';
 	let protocolValue = '';
 	let chaingraphHostValue = '';
 	let nodeValue = '';
 	let blockHeight = 0;
+	let psiNetworkProvider:PsiNetworkProvider;
+  let searchFilterParams: BytecodePatternExtendedQueryI = BytecodePatternQueryDefaults;
 
 	executorAddress.subscribe((value) => {
 		executorAddressValue = value;
@@ -66,60 +79,59 @@
 	onMount(async () => {
 		if (chaingraphHostValue.length > 0) {
 			let networkProvider = getDefaultProvider('mainnet');
+			if (!psiNetworkProvider)
+				psiNetworkProvider = new PsiNetworkProvider('mainnet', chaingraphHostValue, [networkProvider]);
 			if (blockHeight < 1) blockHeight = await networkProvider.getBlockHeight();
 			loadContracts();
 		}
 	});
 	const loadContracts = async () => {
-		await load({
-			load: async () => {
-				isLoading = true;
-				buffered = 0;
-				progress = 0;
-				let protocolHex = protocolValue
-					.split('')
-					.map((el) => el.charCodeAt(0).toString(16))
-					.join('');
-				let contractHex = await getRecords(
-					chaingraphHostValue,
-					'6a04' + protocolHex,
-					nodeValue,
-					pageSize,
-					page * pageSize
-				);
-				let tmpData = contractHex.map((x) => parseOpReturn(x));
-				buffered = 1;
-				if (tmpData.length === 0) {
-					noResults = true;
-				} else {
-					noResults = false;
-				}
-				let networkProvider = getDefaultProvider('mainnet');
+		isLoading = true;
+		buffered = 0;
+		progress = 0;
+		let protocolHex = protocolValue
+			.split('')
+			.map((el) => el.charCodeAt(0).toString(16))
+			.join('');
 
-				let dataPromises = await tmpData.map(async (data) => {
-					let opReturn = binToHex(data.opReturn);
-					data.executorAllowance = opReturnToExecutorAllowance(opReturn);
+		searchFilterParams.prefix = '6a04' + protocolHex;
+    searchFilterParams.code = contractFilter;
+    searchFilterParams.node = nodeValue;
+    searchFilterParams.limit = pageSize;
+    searchFilterParams.offset = page * pageSize;
+		
+		let contractHex = await psiNetworkProvider.search(searchFilterParams);
+    
+		let tmpData = contractHex.map((x) => parseOpReturn(x));
+		buffered = 1;
+		if (tmpData.length === 0) {
+			noResults = true;
+		} else {
+			noResults = false;
+		}
 
-					// adjust the progress per output, with a little bit of fuzz to make it visible.
-					setTimeout(() => {
-						progress += 1 / pageSize;
-					}, 300 + Math.floor(Math.random() * 1000));
-					data.spendable = await opReturnToSpendableBalance(
-						opReturn,
-						'mainnet',
-						networkProvider,
-						blockHeight
-					);
+		let dataPromises = await tmpData.map(async (data) => {
+			let opReturn = binToHex(data.opReturn);
+			data.executorAllowance = opReturnToExecutorAllowance(opReturn);
 
-					return data;
-				});
+			// adjust the progress per output, with a little bit of fuzz to make it visible.
+			setTimeout(() => {
+				progress += 1 / pageSize;
+			}, 300 + Math.floor(Math.random() * 1000));
+			data.spendable = await opReturnToSpendableBalance(
+				opReturn,
+				'mainnet',
+				psiNetworkProvider,
+				blockHeight
+			);
 
-				await Promise.all(dataPromises).then(function (results) {
-					contractData = results;
-				});
-				isLoading = false;
-			}
+			return data;
 		});
+
+		await Promise.all(dataPromises).then(function (results) {
+			contractData = results;
+		});
+		isLoading = false;
 	};
 </script>
 
@@ -133,10 +145,15 @@
 		<div class="card-container">
 			<Card class="demo-spaced">
 				<div class="margins">
-					<h1>Spend Unspent Contracts</h1>
-					<p>pg. {page}</p>
-
+					<h3>Unspent Contracts</h3>
+          
+					
 					<div id="pager">
+            <CodeSelect 
+            on:codeChange={zeroPage}
+            bind:value={contractFilter}
+            />
+            <!--AddressSearch bind:value={addressFilter} /-->
 						<Select
 							style="max-width: 100px"
 							variant="outlined"
@@ -172,6 +189,7 @@
 							ripple={false}
 							on:click={incrementPage}>chevron_right</IconButton
 						>
+            pg. {page}  
 						<span>
 							{#if chaingraphHostValue.length == 0}
 								No Chaingraph endpoint specified.
@@ -252,8 +270,11 @@
 		margin: 18px 10px 24px;
 	}
 
+  #filter{
+		flex-direction: row;
+		justify-content: right;
+	}
 	#pager {
-		display: flex;
 		flex-direction: row;
 		justify-content: right;
 	}
