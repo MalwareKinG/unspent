@@ -17,7 +17,7 @@ export async function getRecords(
   node = "mainnet",
   limit = 25,
   offset = 0,
-  exclude_pattern = "6a0401010102010717",
+  exclude_pattern = "",
   after = 0
 ) {
 
@@ -28,7 +28,7 @@ export async function getRecords(
     offset: offset,
     exclude_pattern: exclude_pattern,
     after: after
-  } as BytecodePatternQueryI
+  } 
 
   param = { ... BytecodePatternQueryDefaults, ...param}
 
@@ -49,6 +49,11 @@ export async function getChaingraphUnspentRecords(
   param: BytecodePatternQueryI
 ) {
 
+  //@ts-ignore
+  if ("code" in param) delete param.code
+  //@ts-ignore
+  if ("version" in param) delete param.version
+  
   const response = await axios({
     url: host,
     method: "post",
@@ -56,7 +61,7 @@ export async function getChaingraphUnspentRecords(
       query: `query SearchOutputsByLockingBytecodePrefix(
       $prefix: String!
       $node: String!
-      $exclude_pattern: String!
+      $exclude_pattern: String
       $limit: Int
       $offset: Int
       $after: bigint

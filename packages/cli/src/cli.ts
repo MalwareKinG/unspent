@@ -1,8 +1,8 @@
 
 // @ts-ignore
-import  version  from "./package.json" assert { type: "json" };
+import packageJson from "../package.json" assert { type: "json" };
 
-import { Cli, Command, Builtins, Option } from "clipanion";
+import { Cli, Command, Option } from "clipanion";
 
 import {
   Annuity,
@@ -14,6 +14,7 @@ import {
 } from "@unspent/phi";
 
 import {
+  parseBigInt,
   getRecords,
   opReturnToSerializedString,
   stringToInstance,
@@ -27,8 +28,8 @@ abstract class VersionedCommand extends Command{
 }
 
 abstract class NetworkCommand extends VersionedCommand {
-  isTestnet = Option.Boolean("--testnet", false, {
-    description: "Use testnet",
+  isChipnet = Option.Boolean("--chipnet", false, {
+    description: "Use chipnet",
   });
   isRegtest = Option.Boolean("--regtest", false,
   {
@@ -43,7 +44,7 @@ abstract class CustomFeeCommand extends NetworkCommand {
   });
 }
 
-class AnnuityCommand extends CustomFeeCommand {
+export class AnnuityCommand extends CustomFeeCommand {
   static override usage = Command.Usage({
     category: `Beneficiary`,
     description: `Regular payments over time`,
@@ -80,16 +81,16 @@ class AnnuityCommand extends CustomFeeCommand {
   });
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
-    const defaultPeriod = this.isTestnet ? 1 : 4000;
-    let periodInt = !this.period ? defaultPeriod : parseInt(this.period);
-    let allowanceInt = !this.allowance ? 3400 : parseInt(this.allowance);
-    let installmentInt = parseInt(this.installment);
-    let feeOverride = !this.fee ? undefined : parseInt(this.fee);
+    const defaultPeriod = this.isChipnet ? 1n : 4000n;
+    let periodInt = !this.period ? defaultPeriod : parseBigInt(this.period);
+    let allowanceInt = !this.allowance ? 3400n : parseBigInt(this.allowance);
+    let installmentInt = parseBigInt(this.installment);
+    let feeOverride = !this.fee ? undefined : parseBigInt(this.fee);
     let version = parseInt(this.version)
 
     if (!this.getAddress) {
@@ -101,7 +102,7 @@ class AnnuityCommand extends CustomFeeCommand {
         { version: version, network: network }
       );
       await a.info();
-      a.execute(this.executorAddress, feeOverride);
+      if(await a.isFunded()) a.execute(this.executorAddress, feeOverride);
     } else {
       let a = new Annuity(
         periodInt,
@@ -115,7 +116,7 @@ class AnnuityCommand extends CustomFeeCommand {
   }
 }
 
-class DivideCommand extends CustomFeeCommand {
+export class DivideCommand extends CustomFeeCommand {
   static override usage = Command.Usage({
     category: `Beneficiary`,
     description: `Divide money into equal payments, up to four addresses`,
@@ -139,15 +140,15 @@ class DivideCommand extends CustomFeeCommand {
   });
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
 
-    let allowanceInt = !this.allowance ? 1200 : parseInt(this.allowance);
+    let allowanceInt = !this.allowance ? 1200n : parseBigInt(this.allowance);
     let addresses = this.addresses.split(",");
-    let feeOverride = !this.fee ? undefined : parseInt(this.fee);
+    let feeOverride = !this.fee ? undefined : parseBigInt(this.fee);
     let version = parseInt(this.version)
 
     let divide = new Divide(allowanceInt, addresses, {
@@ -163,7 +164,7 @@ class DivideCommand extends CustomFeeCommand {
   }
 }
 
-class FaucetCommand extends CustomFeeCommand {
+export class FaucetCommand extends CustomFeeCommand {
   static override paths = [[`faucet`], [`f`]];
 
   static override usage = Command.Usage({
@@ -189,16 +190,16 @@ class FaucetCommand extends CustomFeeCommand {
   });
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
 
-    let periodInt = !this.period ? 1 : parseInt(this.period);
-    let payoutInt = !this.payout ? 1000 : parseInt(this.payout);
-    let indexInt = !this.index ? 1 : parseInt(this.index);
-    let feeOverride = !this.fee ? undefined : parseInt(this.fee);
+    let periodInt = !this.period ? 1n : parseBigInt(this.period);
+    let payoutInt = !this.payout ? 1000n : parseBigInt(this.payout);
+    let indexInt = !this.index ? 1n : parseBigInt(this.index);
+    let feeOverride = !this.fee ? undefined : parseBigInt(this.fee);
     let version = parseInt(this.version)
 
     if (this.address) {
@@ -206,20 +207,19 @@ class FaucetCommand extends CustomFeeCommand {
         version: version,
         network: network,
       });
-      await faucet.info(true);
-      let response = await faucet.execute(this.address, feeOverride);
-      console.log(response);
+      await faucet.info();
+      if(await faucet.isFunded()) await faucet.execute(this.address, feeOverride);
     } else {
       let faucet = await new Faucet(periodInt, payoutInt, indexInt, {
         version: version,
         network: network,
       });
-      await faucet.info(true);
+      await faucet.info();
     }
   }
 }
 
-class MineCommand extends CustomFeeCommand {
+export class MineCommand extends CustomFeeCommand {
   static override usage = Command.Usage({
     category: `Distributive`,
     description: `Distributes some bitcoin per period, for proof of work`,
@@ -254,17 +254,17 @@ class MineCommand extends CustomFeeCommand {
   });
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
-    const defaultPeriod = this.isTestnet ? 1 : 4000;
-    let periodInt = !this.period ? defaultPeriod : parseInt(this.period);
-    let payoutInt = !this.payout ? 1000 : parseInt(this.payout);
-    let difficultyInt = !this.difficulty ? 3 : parseInt(this.difficulty);
+    const defaultPeriod = this.isChipnet ? 1 : 4000;
+    let periodInt = !this.period ? defaultPeriod : parseBigInt(this.period);
+    let payoutInt = !this.payout ? 1000 : parseBigInt(this.payout);
+    let difficultyInt = !this.difficulty ? 3 : parseBigInt(this.difficulty);
     let canaryHex = this.canary;
-    let feeOverride = !this.fee ? undefined : parseInt(this.fee);
+    let feeOverride = !this.fee ? undefined : parseBigInt(this.fee);
     let version = parseInt(this.version)
 
     let m = new Mine(periodInt, payoutInt, difficultyInt, canaryHex, {
@@ -275,7 +275,7 @@ class MineCommand extends CustomFeeCommand {
   }
 }
 
-class PerpetuityCommand extends CustomFeeCommand {
+export class PerpetuityCommand extends CustomFeeCommand {
   static override usage = Command.Usage({
     category: `Beneficiary`,
     description: `Pay a fixed fraction of total value at intervals.`,
@@ -313,43 +313,43 @@ class PerpetuityCommand extends CustomFeeCommand {
   });
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
-    const defaultPeriod = this.isTestnet ? 1 : 4000;
-    const defaultDecay = this.isTestnet ? 8 : 120;
-    let periodInt = !this.period ? defaultPeriod : parseInt(this.period);
-    let allowanceInt = !this.allowance ? 3400 : parseInt(this.allowance);
-    let decayInt = !this.decay ? defaultDecay : parseInt(this.decay);
-    let feeOverride = !this.fee ? undefined : parseInt(this.fee);
+    const defaultPeriod = this.isChipnet ? 1 : 4000;
+    const defaultDecay = this.isChipnet ? 8 : 120;
+    let periodInt = !this.period ? defaultPeriod : parseBigInt(this.period);
+    let allowanceInt = !this.allowance ? 3400 : parseBigInt(this.allowance);
+    let decayInt = !this.decay ? defaultDecay : parseBigInt(this.decay);
+    let feeOverride = !this.fee ? undefined : parseBigInt(this.fee);
     let version = parseInt(this.version)
 
     if (!this.getAddress) {
-      let perp = new Perpetuity(
+      let perpetuity = new Perpetuity(
         periodInt,
         this.address,
         allowanceInt,
         decayInt,
         { version: version, network: network }
       );
-      await perp.info();
-      perp.execute(this.executorAddress, feeOverride);
+      await perpetuity.info();
+      if(await perpetuity.isFunded()) perpetuity.execute(this.executorAddress, feeOverride);
     } else {
-      let perp = new Perpetuity(
+      let perpetuity = new Perpetuity(
         periodInt,
         this.address,
         allowanceInt,
         decayInt,
         { version: version, network: network }
       );
-      await perp.info();
+      await perpetuity.info();
     }
   }
 }
 
-class QueryCommand extends NetworkCommand {
+export class QueryCommand extends NetworkCommand {
   static override usage = Command.Usage({
     category: `Informational`,
     description: `Query a list of contracts.`,
@@ -357,7 +357,7 @@ class QueryCommand extends NetworkCommand {
 
   static override paths = [[`query`], [`q`]];
 
-  network = this.isTestnet ? "staging" : this.isRegtest ? "regtest" : "mainnet";
+  network = this.isChipnet ? "chipnet" : this.isRegtest ? "regtest" : "mainnet";
   chaingraph = Option.String("--chaingraph", {
     required: false,
     description: "A chaingraph service to query",
@@ -372,7 +372,7 @@ class QueryCommand extends NetworkCommand {
       ? this.chaingraph
       : "https://demo.chaingraph.cash/v1/graphql";
     let prefix = this.prefix ? this.prefix : undefined;
-    let node = this.isTestnet ? "testnet" : this.isRegtest ? "rbchn" : "mainnet";
+    let node = this.isChipnet ? "chipnet" : this.isRegtest ? "rbchn" : "mainnet";
     let hexRecords = await getRecords(chaingraph, prefix, node);
     console.log(`Found ${hexRecords.length} records`);
     hexRecords.map((s: string) => console.log(s));
@@ -388,7 +388,7 @@ class QueryCommand extends NetworkCommand {
   }
 }
 
-class RecordCommand extends CustomFeeCommand {
+export class RecordCommand extends CustomFeeCommand {
   static override usage = Command.Usage({
     category: `Informational`,
     description: `Broadcast a contract to the blockchain`,
@@ -408,26 +408,29 @@ class RecordCommand extends CustomFeeCommand {
     required: false,
     description: "a serialized contract to publish",
   });
-  network = this.isTestnet ? "staging" : this.isRegtest ? "regtest" : "mainnet";
+  selfPublish = Option.Boolean("--selfPublish", {
+    required: false,
+    description: "Whether or not to self publish the contract if funded",
+  });
+  network = this.isChipnet ? "chipnet" : this.isRegtest ? "regtest" : "mainnet";
 
   async execute() {
-    let network = this.isTestnet
-      ? "staging"
+    let network = this.isChipnet
+      ? "chipnet"
       : this.isRegtest
       ? "regtest"
       : "mainnet";
-    let maxFeeInt = !this.maxFee ? undefined : parseInt(this.maxFee);
-    let indexInt = !this.index ? undefined : parseInt(this.index);
+    let maxFeeInt = !this.maxFee ? undefined : parseBigInt(this.maxFee);
+    let indexInt = !this.index ? undefined : parseBigInt(this.index);
     let version = parseInt(this.version)
 
     if (!this.contract) {
-      console.log("no contract specified");
+      //console.log("no contract specified");
       let r = new Record(maxFeeInt, indexInt, { version: version, network: network });
       if (await r.isFunded()) {
-        let tx = await r.broadcast();
-        console.log(tx);
+        await r.info();
+        if(this.selfPublish) await r.broadcast();
       } else {
-        console.log("contract is NOT funded, unable to broadcast");
         await r.info();
       }
     } else {
@@ -435,7 +438,6 @@ class RecordCommand extends CustomFeeCommand {
       let i = stringToInstance(this.contract, network);
       if (!i) throw Error(`Couldn't parse string ${this.contract}`);
       console.log("broadcasting... ");
-      console.log(i.toOpReturn());
       let tx = await r.broadcast(i.toOpReturn());
       console.log(tx);
     }
@@ -445,16 +447,10 @@ class RecordCommand extends CustomFeeCommand {
 const cli = new Cli({
   binaryName: "unspent",
   binaryLabel: "@unspent/cli",
-  binaryVersion: version,
+  binaryVersion: packageJson.version,
+  enableColors: true,
+  enableCapture: true
 });
 
-cli.register(AnnuityCommand);
-cli.register(DivideCommand);
-cli.register(FaucetCommand);
-cli.register(MineCommand);
-cli.register(PerpetuityCommand);
-cli.register(QueryCommand);
-cli.register(RecordCommand);
-cli.runExit(process.argv.slice(2));
-cli.register(Builtins.VersionCommand);
-cli.register(Builtins.HelpCommand);
+
+export { cli };
