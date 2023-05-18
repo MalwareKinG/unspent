@@ -6,6 +6,7 @@
     "build": "vite build",
     "preview": "NODE_ENV=\"development\" vite preview",
     "publish": "NODE_ENV=\"production\" vite build",
+    "publish:public": "#no op",
     "prepare": "yarn smui-theme-light && yarn smui-theme-dark && yarn site-light && yarn site-dark",
     "smui-theme-light": "smui-theme compile static/smui.css -s expanded -i src/theme -i node_modules/",
     "smui-theme-dark": "smui-theme compile static/smui-dark.css -s expanded -i src/theme/dark -i node_modules/",
