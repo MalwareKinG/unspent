@@ -2,6 +2,8 @@
 // @ts-ignore
 import packageJson from "../package.json" assert { type: "json" };
 
+import "fake-indexeddb/auto";
+
 import { Cli, Command, Option } from "clipanion";
 
 import {
@@ -10,7 +12,7 @@ import {
   Faucet,
   Mine,
   Perpetuity,
-  Record,
+  Record
 } from "@unspent/phi";
 
 import {
