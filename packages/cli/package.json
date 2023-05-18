@@ -1,6 +1,6 @@
 {
   "name": "unspent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A command line utility for Unspent Phi (₿∙ϕ) contracts",
   "type": "module",
   "bin": "cli.cjs",
@@ -10,8 +10,8 @@
     "@swc/helpers": "latest",
     "@tsconfig/node18-strictest-esm": "latest",
     "@types/node": "^10.8.0",
-    "@unspent/phi": "0.1.1",
-    "@unspent/psi": "0.1.1",
+    "@unspent/phi": "0.1.2",
+    "@unspent/psi": "0.1.2",
     "cashc-0.7": "npm:cashc@0.7.3",
     "cashscript-0.7": "npm:cashscript@0.7.3",
     "cashc": "0.8.0-next.2",
