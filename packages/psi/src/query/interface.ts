@@ -1,5 +1,5 @@
 import type { Input, Output, Transaction } from '@bitauth/libauth';
-import { PROTOCOL_ID } from '../common/constant.js';
+import { PROTOCOL_ID } from '../constant.js';
 
 export interface BytecodePatternQueryI {
   prefix?: string;
@@ -34,14 +34,12 @@ export interface HistoryQueryI{
   node?: string;
   limit?: number;
   offset?: number;
-  after: number;
 }
 
 export const HistoryIDefaults: HistoryQueryI = {
   node: "mainnet",
   limit: 500,
-  offset: 0,
-  after: 0,
+  offset: 0
 }
 
 

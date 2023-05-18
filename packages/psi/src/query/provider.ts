@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from 'axios';
 import {
   BytecodePatternQueryI,
   BytecodePatternQueryDefaults,
@@ -7,7 +7,7 @@ import {
   HistoryQueryI,
   HistoryIDefaults
 } from "./interface.js";
-import { parseOpReturn } from "../common/map.js"
+import { parseOpReturn } from "./util.js"
 import { binToHex } from "@bitauth/libauth";
 
 
@@ -245,9 +245,9 @@ export async function getTransaction(host: string, txid: string) {
   return response.data.data;
 }
 
-export async function getUnspentOutputs(host: string, lockingBytecode: string) {
+export async function getUnspentOutputs(host: string, lockingBytecode: string, node?:string) {
   const query = `
-  query SearchUnspentOutputsByLockingBytecode($lockingBytecode_literal: _text!) {
+  query SearchUnspentOutputsByLockingBytecode($lockingBytecode_literal: _text!, $node: String!) {
     search_output(
       args: { locking_bytecode_hex: $lockingBytecode_literal},
       where: {_not:{spent_by:{value_satoshis:{_gt:0}}}}
@@ -257,12 +257,16 @@ export async function getUnspentOutputs(host: string, lockingBytecode: string) {
       value_satoshis
     }
   }`
+
+  node  = node ? node: "mainnet"
+
   const response = await axios({
     url: host,
     method: "post",
     data: {
       query: query,
       variables: {
+        node: node,
         lockingBytecode_literal: `{${lockingBytecode}}`,
       },
     },
@@ -341,7 +345,6 @@ export async function getHistory(host: string,
   query GetTransactionHistory(
     $node: String!
     $lockingBytecode: _text!
-    $after: bigint
     $limit: Int
     $offset: Int
   ) {
@@ -351,11 +354,6 @@ export async function getHistory(host: string,
       }
       where: {
         _and: [
-          {
-            transaction: {
-              block_inclusions: { block: { height: { _gt: $after } } }
-            }
-          }
           {
             _or: [
               {
@@ -419,13 +417,17 @@ export async function getHistory(host: string,
     }
   }
 
+  
+
   return response.data.data.search_output.map((o: any) => {
     //console.log(JSON.stringify(o,undefined, 2))
+    let height = o.transaction.block_inclusions.length > 0 ? o.transaction.block_inclusions[0].block.height : -1
+    let timestamp = o.transaction.block_inclusions.length > 0 ? o.transaction.block_inclusions[0].block.timestamp : -1
     return {
       hash: o.transaction.hash.slice(2),
       raw: o.transaction.encoded_hex,
-      height: parseInt(o.transaction.block_inclusions[0].block.height),
-      timestamp: parseInt(o.transaction.block_inclusions[0].block.timestamp),
+      height: parseInt(height),
+      timestamp: parseInt(timestamp),
       spentBy: o.spent_by.map((o: any) => { return o.outpoint.transaction_hash.slice(2) + ":" + o.outpoint.output_index })
     }
   });

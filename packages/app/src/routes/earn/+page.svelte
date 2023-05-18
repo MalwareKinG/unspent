@@ -3,17 +3,19 @@
 
 	import { binToHex } from '@bitauth/libauth';
 
-  import type { BytecodePatternExtendedQueryI } from "@unspent/phi"
+	import type { Network } from 'cashscript';
+	import type { BytecodePatternExtendedQueryI } from '@unspent/psi';
+
 	import {
-    BytecodePatternQueryDefaults,
 		getDefaultProvider,
 		opReturnToExecutorAllowance,
 		opReturnToSpendableBalance,
-    parseOpReturn
+		parseOpReturn
 	} from '@unspent/phi';
+	import { BytecodePatternQueryDefaults } from '@unspent/psi';
 	import { PsiNetworkProvider } from '@unspent/psi';
 
-
+  import Badge from '@smui-extra/badge';
 	import Card from '@smui/card';
 	import Select, { Option } from '@smui/select';
 	import IconButton from '@smui/icon-button';
@@ -23,10 +25,10 @@
 	import ContractAccordion from '$lib/ContractAccordion.svelte';
 	import { protocol, chaingraphHost, node, executorAddress } from '$lib/store.js';
 
-  import AddressSearch  from '$lib/contractFilter/AddressSearch.svelte';
-  import CodeSelect  from '$lib/contractFilter/CodeSelect.svelte';
+	import AddressSearch from '$lib/contractFilter/AddressSearch.svelte';
+	import CodeSelect from '$lib/contractFilter/CodeSelect.svelte';
 
-	let contractData:any[] = [];
+	let contractData: any[] = [];
 	let isLoading = true;
 	let buffered = 0;
 	let progress = 0;
@@ -36,15 +38,15 @@
 	let pageSize = 10;
 	let page = 0;
 
-  let contractFilter = '';
-  let addressFilter = '';
+	let contractFilter = '';
+	let addressFilter = '';
 	let executorAddressValue = '';
 	let protocolValue = '';
 	let chaingraphHostValue = '';
 	let nodeValue = '';
 	let blockHeight = 0;
-	let psiNetworkProvider:PsiNetworkProvider;
-  let searchFilterParams: BytecodePatternExtendedQueryI = BytecodePatternQueryDefaults;
+	let psiNetworkProvider: PsiNetworkProvider;
+	let searchFilterParams: BytecodePatternExtendedQueryI = BytecodePatternQueryDefaults;
 
 	executorAddress.subscribe((value) => {
 		executorAddressValue = value;
@@ -56,6 +58,7 @@
 	chaingraphHost.subscribe((value) => {
 		chaingraphHostValue = value;
 	});
+
 	node.subscribe((value) => {
 		nodeValue = value;
 	});
@@ -78,9 +81,11 @@
 
 	onMount(async () => {
 		if (chaingraphHostValue.length > 0) {
-			let networkProvider = getDefaultProvider('mainnet');
+			let networkProvider = getDefaultProvider(nodeValue);
 			if (!psiNetworkProvider)
-				psiNetworkProvider = new PsiNetworkProvider('mainnet', chaingraphHostValue, [networkProvider]);
+				psiNetworkProvider = new PsiNetworkProvider(nodeValue as Network, chaingraphHostValue, [
+					networkProvider
+				]);
 			if (blockHeight < 1) blockHeight = await networkProvider.getBlockHeight();
 			loadContracts();
 		}
@@ -95,14 +100,14 @@
 			.join('');
 
 		searchFilterParams.prefix = '6a04' + protocolHex;
-    searchFilterParams.code = contractFilter;
-    searchFilterParams.node = nodeValue;
-    searchFilterParams.limit = pageSize;
-    searchFilterParams.offset = page * pageSize;
-		
+		searchFilterParams.code = contractFilter;
+		searchFilterParams.node = nodeValue;
+		searchFilterParams.limit = pageSize;
+		searchFilterParams.offset = page * pageSize;
+
 		let contractHex = await psiNetworkProvider.search(searchFilterParams);
-    
-		let tmpData = contractHex.map((x) => parseOpReturn(x));
+
+		let tmpData = contractHex.map((x) => parseOpReturn(x, nodeValue));
 		buffered = 1;
 		if (tmpData.length === 0) {
 			noResults = true;
@@ -112,7 +117,7 @@
 
 		let dataPromises = await tmpData.map(async (data) => {
 			let opReturn = binToHex(data.opReturn);
-			data.executorAllowance = opReturnToExecutorAllowance(opReturn);
+			data.executorAllowance = opReturnToExecutorAllowance(opReturn, nodeValue);
 
 			// adjust the progress per output, with a little bit of fuzz to make it visible.
 			setTimeout(() => {
@@ -120,7 +125,7 @@
 			}, 300 + Math.floor(Math.random() * 1000));
 			data.spendable = await opReturnToSpendableBalance(
 				opReturn,
-				'mainnet',
+				nodeValue,
 				psiNetworkProvider,
 				blockHeight
 			);
@@ -145,15 +150,16 @@
 		<div class="card-container">
 			<Card class="demo-spaced">
 				<div class="margins">
-					<h3>Unspent Contracts</h3>
-          
+          <span style="position: relative; display: inline-block; padding: 1em 1em 0 0;">
+            <div style="font-size: x-large;">Unspent Contracts</div>
+            <Badge color="primary"  position="outset" align="bottom-end" aria-label="contract network"
+              >{nodeValue}</Badge
+            >
+          </span>
 					
 					<div id="pager">
-            <CodeSelect 
-            on:codeChange={zeroPage}
-            bind:value={contractFilter}
-            />
-            <!--AddressSearch bind:value={addressFilter} /-->
+						<CodeSelect on:codeChange={zeroPage} bind:value={contractFilter} />
+						<!--AddressSearch bind:value={addressFilter} /-->
 						<Select
 							style="max-width: 100px"
 							variant="outlined"
@@ -189,7 +195,7 @@
 							ripple={false}
 							on:click={incrementPage}>chevron_right</IconButton
 						>
-            pg. {page}  
+						pg. {page}
 						<span>
 							{#if chaingraphHostValue.length == 0}
 								No Chaingraph endpoint specified.
@@ -270,7 +276,7 @@
 		margin: 18px 10px 24px;
 	}
 
-  #filter{
+	#filter {
 		flex-direction: row;
 		justify-content: right;
 	}

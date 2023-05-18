@@ -2,6 +2,7 @@
 	import { beforeUpdate } from 'svelte';
 	import Prism from 'prismjs';
 	import { Confetti } from 'svelte-confetti';
+  import { throttle } from 'throttle-debounce';
 
 	import { toast } from '@zerodevx/svelte-toast';
 	import { copy } from 'svelte-copy';
@@ -18,7 +19,7 @@
 
 	import BroadcastAction from '$lib/BroadcastAction.svelte';
 	import UtxosSelect from '$lib/UtxosSelect.svelte';
-	import { executorAddress } from '$lib/store.js';
+	import { executorAddress, executorChipnetAddress, node } from '$lib/store.js';
 	import Address from '$lib/Address.svelte';
 	import AddressQrDialog from '$lib/AddressQrDialog.svelte';
 	import AddressBlockie from '$lib/AddressBlockie.svelte';
@@ -49,19 +50,36 @@
 	let executedSuccess = false;
 	let executeError = '';
 
-	let executorAddressValue = '';
+	let address = '';
+	let nodeValue = '';
 
-	executorAddress.subscribe((value) => {
-		executorAddressValue = value;
+	node.subscribe((value) => {
+		nodeValue = value;
 	});
+	if (nodeValue == 'mainnet') {
+		executorAddress.subscribe((value) => {
+			address = value;
+		});
+	}
+	if (nodeValue == 'chipnet') {
+		executorChipnetAddress.subscribe((value) => {
+			address = value;
+		});
+	}
+
+
+  const throttleUpdate = throttle(3000, async () => {
+         await updateBalance();
+    });
 
 	beforeUpdate(async () => {
 		// This fixes a bug related to the contract switch where old contracts appear
 		if (instanceType && instanceType !== instance.artifact.contractName) instance = undefined;
-		await updateBalance();
+    await throttleUpdate();
 	});
 
 	const updateBalance = async () => {
+    
 		if (instance) balance = await instance.getBalance();
 		isFunded = balance > 0 ? true : false;
 
@@ -77,7 +95,7 @@
 		executedSuccess = false;
 		try {
 			let inUtxos = utxos.filter((u: any) => u.use == true);
-			txid = await instance.execute(executorAddressValue, undefined, inUtxos);
+			txid = await instance.execute(address, undefined, inUtxos);
 			executedSuccess = true;
 			executeError = '';
 			clearProgress();
@@ -139,16 +157,21 @@
 		<AddressBlockie lockingBytecode={instance.getLockingBytecode()} />
 	</span>
 	<div>
-		<span style="position: relative; display: inline-block; padding: .5em .5em 0 0;">
+		<span style="position: relative; display: inline-block; padding: 1em 1em 0 0;">
 			<div style="font-size: x-large;">{instance.artifact.contractName}</div>
 			<Badge color="secondary" square align="top-end" aria-label="contract version"
 				>v{instance.options.version}</Badge
+			>
+      <Badge color="primary"  position="outset" align="bottom-end" aria-label="contract network"
+				>{nodeValue}</Badge
 			>
 		</span>
 	</div>
 
 	<div>
+    <span style="padding: 1em;">
 		<p>{instance.asText()}</p>
+  </span>
 	</div>
 	<div style=" width: 200px;">
 		<div style="text-align:end;">
@@ -165,7 +188,8 @@
 	<div>
 		<Wrapper>
 			<IconButton
-				href="{base}/contract?opReturn={instance.toOpReturn(true)}"
+				href="{base}/contract?opReturn={instance.toOpReturn(true)}&network={instance.options
+					.network}"
 				target="_blank"
 				touch
 				color="secondary"
@@ -181,9 +205,11 @@
 			<Tooltip>Show qr code</Tooltip>
 		</Wrapper>
 
-		<SickPigAddress address={instance.getAddress()} />
-		<BlockchairAddress address={instance.getAddress()} />
-		<BitInfoChartsAddress {instance} />
+		<SickPigAddress address={instance.getAddress()} network={nodeValue} />
+		{#if nodeValue === 'mainnet'}
+			<BlockchairAddress address={instance.getAddress()} />
+			<BitInfoChartsAddress {instance} />
+		{/if}
 	</div>
 
 	<Address address={instance.getAddress()} />
@@ -216,7 +242,7 @@
 		<Tooltip>Execute this Contract</Tooltip>
 	</Wrapper>
 
-	{#if !executorAddressValue}
+	{#if !address}
 		<p>
 			<b>Note:&nbsp;</b>Set an executor address in <a href="{base}/settings">settings</a> to claim execution
 			fee.
@@ -340,7 +366,7 @@
 						<td class="right"
 							><a
 								style="max-width=30em; line-break:anywhere;"
-								href="{base}/explorer?lockingBytecode={output} "
+								href="{base}/explorer?lockingBytecode={output}&network={nodeValue}"
 							>
 								{output}
 							</a>

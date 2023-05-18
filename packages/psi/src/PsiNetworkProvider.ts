@@ -1,17 +1,18 @@
 import { ElectrumNetworkProvider, Network, NetworkProvider } from "cashscript";
 import {
   BytecodePatternQueryI,
-  deriveLockingBytecode,
   getChaingraphUnspentRecords,
   getHistory,
   prepareBytecodeQueryParameters
-} from "@unspent/phi"
+} from "./query/index.js"
+
 import {
   Utxo
 } from "./interface.js";
 import {
   //   getMaxBlockHeight,
-  asUtxo
+  asUtxo,
+  deriveLockingBytecode,
 } from "./util.js"
 import { Psi } from "./Psi.js"
 import { binToHex } from "@bitauth/libauth";
@@ -25,15 +26,16 @@ export class PsiNetworkProvider implements NetworkProvider {
 
   public constructor(
     public network: Network,
-    public chaingraphHost: string,
-    public failoverProviders?: ElectrumNetworkProvider[],
+    public chaingraphHost?: string,
+    public failoverProvider?: ElectrumNetworkProvider,
     public debounce?: number,
     public fuzz?: number
   ) {
 
+    this.chaingraphHost = chaingraphHost ? chaingraphHost : "https://gql.chaingraph.pat.mn/v1/graphql"
     this.db = new Psi(network)
 
-    failoverProviders = failoverProviders ? failoverProviders : []
+    failoverProvider = failoverProvider ? failoverProvider : undefined
     if (debounce) this.DEBOUNCE = debounce
     if (fuzz) this.FUZZ = fuzz
   }
@@ -44,14 +46,14 @@ export class PsiNetworkProvider implements NetworkProvider {
     const block = await this.db.getBlockHeight()
 
     if (block.id > 0 && block.timestamp) {
-      const age = new Date().getTime() - block.timestamp.getTime()
+      const age = new Date().getTime() - block.timestamp
       if (age < this.DEBOUNCE) {
         return block.id
       }
     }
 
-    if (this.failoverProviders) {
-      const currentHeight = await this.failoverProviders[0]?.getBlockHeight()!
+    if (this.failoverProvider) {
+      const currentHeight = await this.failoverProvider?.getBlockHeight()!
       await this.db.setBlockHeight(currentHeight)
       return currentHeight
     } else {
@@ -70,7 +72,7 @@ export class PsiNetworkProvider implements NetworkProvider {
       // some time ago
       return goodUtxos.map(op => asUtxo(op))
     } else {
-      const history = await getHistory(this.chaingraphHost, lockingBytecode, { after: 0, limit: 5 })
+      const history = await getHistory(this.chaingraphHost!, lockingBytecode, { node: this.network, limit: 5 })
       return (await this.db.bulkPutRawTransaction(history, lockingBytecodeHex)).map(u => asUtxo(u))
     }
 
@@ -78,16 +80,14 @@ export class PsiNetworkProvider implements NetworkProvider {
 
 
   public async getRawTransaction(txid: string): Promise<string> {
-    if (!this.failoverProviders) {
+    if (!this.failoverProvider) {
       throw Error("No failover network providers specified. Cannot get tx from cache.")
     } else {
       // TODO replace with chaingraph raw transaction getter.
-      for (const p of this.failoverProviders) {
-        try {
-          return await p.getRawTransaction(txid)
-        } catch (e: any) {
-          console.debug(e)
-        }
+      try {
+        return await this.failoverProvider.getRawTransaction(txid)
+      } catch (e: any) {
+        console.debug(e)
       }
       throw Error("Failover Transaction (get) Network providers exhausted, bailing")
     }
@@ -95,17 +95,16 @@ export class PsiNetworkProvider implements NetworkProvider {
   }
 
   public async sendRawTransaction(txHex: string): Promise<string> {
-    if (!this.failoverProviders) {
+    if (!this.failoverProvider) {
       throw Error("No failover network providers specified. Cannot send from cache.")
     } else {
       // replace with chaingraph send
-      for (const p of this.failoverProviders) {
         try {
-          return await p.sendRawTransaction(txHex)
+          return await this.failoverProvider.sendRawTransaction(txHex)
         } catch (e: any) {
           console.debug(e)
         }
-      }
+      
       throw Error("Failover Broadcast Network Providers exhausted, bailing")
     }
   }
@@ -121,7 +120,7 @@ export class PsiNetworkProvider implements NetworkProvider {
     if (cached.length < param.limit!) {
       console.debug("hitting chaingraph")
       const result = await getChaingraphUnspentRecords(
-        this.chaingraphHost,
+        this.chaingraphHost!,
         param
       )
       this.db.bulkPutUnspentPhiContracts(result)
