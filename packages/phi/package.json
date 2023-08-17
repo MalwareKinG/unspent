@@ -29,7 +29,7 @@
   ],
   "dependencies": {
     "@bitauth/libauth": "v2.0.0-alpha.8",
-    "@cashscript/utils": "0.8.0-next.2",
+    "@cashscript/utils": "0.8.1",
     "@tsconfig/node16-strictest-esm": "latest",
     "@unspent/psi": "0.1.3",
     "cashc": "0.8.0-next.2",
