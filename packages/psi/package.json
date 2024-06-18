@@ -31,7 +31,7 @@
     "axios": "1.4.0",
     "cashscript": "0.8.0-next.2",
     "dexie": "4.0.1-alpha.8",
-    "electrum-cash": "^2.0.10",
+    "electrum-cash": "^3.0.1",
     "typeson": "8.0.1"
   },
   "devDependencies": {
