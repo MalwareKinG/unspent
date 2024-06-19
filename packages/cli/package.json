@@ -15,7 +15,7 @@
     "cashc-0.7": "npm:cashc@0.7.3",
     "cashscript-0.7": "npm:cashscript@0.7.3",
     "cashc": "0.8.0-next.2",
-    "cashscript": "0.8.0-next.2",
+    "cashscript": "0.8.0",
     "clipanion": "^3.2.0-rc.11",
     "fake-indexeddb": "4.0.1",
     "get-stream": "^5.1.0",
