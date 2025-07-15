@@ -55,9 +55,9 @@
     "cashc-0.7": "npm:cashc@0.7.3",
     "cashscript-0.7": "npm:cashscript@0.7.3",
     "cashc": "0.8.0-next.2",
-    "cashscript": "0.8.0-next.2",
+    "cashscript": "0.11.0",
     "clipanion": "^3.2.0-rc.11",
-    "electrum-cash": "^2.0.10",
+    "electrum-cash": "^3.2.0",
     "lerna": "^3.22.1",
     "typescript": "^4.9.4"
   },
